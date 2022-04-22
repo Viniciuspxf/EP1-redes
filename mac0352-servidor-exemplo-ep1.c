@@ -140,10 +140,14 @@ void publish(Packet publishPacket) {
     char msb = (char) publishPacket.variableHeader[0];
     char lsb = (char) publishPacket.variableHeader[1];
     char begin = 2 + msb, end = 2 + lsb;
+    int sizeOftopic = end - begin;
+    char * topic = malloc((sizeOftopic + 1)*sizeof(char));
+    topic[sizeOftopic] = '\0';
 
-    printf("Nome do topico: ");
     for (char i = begin; i < end; i++)
-        printf("%c", (char) publishPacket.variableHeader[i]);
+        topic[i - begin] = publishPacket.variableHeader[i]; 
+
+    printf("Topic: %s", topic);
     printf("\n Identificador do pacote: ");
 
     for (char i = end; i < remainingLength; i++)
