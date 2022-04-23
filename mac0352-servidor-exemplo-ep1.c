@@ -142,9 +142,12 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
     path[0] = '\0';
 
     strcat(path, "/tmp/");
-    strcat(path, "ep1.");
+    strcat(path, "ep1");
+    strcat(path, "/");
+    mkdir(path, 0777);
     strcat(path, topic);
-    strcat(path, ".");
+    mkdir(path, 0777);
+    strcat(path, "/");
     sprintf(pid, "%d", getpid());
     strcat(path, pid);
     strcat(path, ".falcon");
