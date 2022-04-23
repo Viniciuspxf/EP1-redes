@@ -45,6 +45,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include <dirent.h> 
+
+
 #define LISTENQ 1
 #define MAXDATASIZE 100
 #define MAXLINE 4096
@@ -128,7 +131,12 @@ void * thread(void * arguments) {
     int fileDescriptor = *((int *) arguments);
     int connfd = *((int *) (arguments + 1));
 
+    printf("Entrei na thread\n");
+        fflush(stdout);
+
     while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0) {
+        printf("aaaaaaaaaaa\n");
+        fflush(stdout);
         recvline[n]=0;
         write(connfd, recvline, strlen(recvline));
     }
@@ -159,11 +167,18 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
         perror("mkfifo :(\n");
     }
 
-    listOfTopicsNode->fileDescriptor = open(path, O_RDWR); //TODO: verificar se esta certo usar read E write
-    unlink(path); ///TODO: verificar se esta certo esse unlink
+    // listOfTopicsNode->fileDescriptor = open(path, O_WRONLY);
+    // unlink(path); ///TODO: verificar se esta certo esse unlinks
+    // close(listOfTopicsNode->fileDescriptor);
+    
+    listOfTopicsNode->fileDescriptor = open(path, O_RDWR);//TODO: verificar se esta certo usar read E write
+    //unlink(path); ///TODO: verificar se esta certo esse unlink
     arguments[0] = listOfTopicsNode->fileDescriptor;
 
     pthread_create(&(listOfTopicsNode->thread), NULL, thread, arguments);
+
+    printf("Sai do criador thread\n");
+        fflush(stdout);
 
     listOfTopicsNode->topic = topic;
     listOfTopicsNode->next = NULL;
@@ -231,16 +246,56 @@ char * convertPacketToMessage(Packet packet, int *size) {
 }
 
 void publish(Packet publishPacket) {
+    int pipe;
+    int sizeOfMessage;
+    char path[MAXLINE + 1];
+    char pipePath[MAXLINE + 1];
     char remainingLength = (char) publishPacket.remainingLength;
     char msb = (char) publishPacket.variableHeader[0];
     char lsb = (char) publishPacket.variableHeader[1];
-    char begin = 2 + msb, end = 2 + lsb;
-    int sizeOftopic = end - begin;
-    char * topic = malloc((sizeOftopic + 1)*sizeof(char));
-    topic[sizeOftopic] = '\0';
+    int sizeOfTopic = msb + lsb;
+    char begin = 2;
+    char end = begin + sizeOfTopic;
+    char * topic = malloc((sizeOfTopic + 1)*sizeof(char));
+    topic[sizeOfTopic] = '\0';
+
+    DIR *directory;
+    struct dirent *file;
+    
 
     for (char i = begin; i < end; i++)
         topic[i - begin] = publishPacket.variableHeader[i]; 
+    
+    strcat(path, "/tmp/");
+    strcat(path, "ep1");
+    strcat(path, "/");
+    mkdir(path, 0777);
+    strcat(path, topic);
+    mkdir(path, 0777);
+    strcat(path, "/");
+
+    char * message = convertPacketToMessage(publishPacket, &sizeOfMessage);
+
+    directory = opendir(path);
+    if (directory) {
+        while ((file = readdir(directory)) != NULL) {
+            strcpy(pipePath, path);
+            printf("%s\n\n\n", file->d_name); fflush(stdout);
+            if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
+                strcpy(pipePath, path);
+                strcat(pipePath, file->d_name);
+                printf("Entrou no if %s \n\n\n", pipePath); fflush(stdout);
+                pipe = open(pipePath, O_WRONLY);
+                printf("Abriu o pipe %s \n\n\n", pipePath); fflush(stdout);
+                write(pipe, message, sizeOfMessage);
+                printf("Escreveu no pipe %s \n\n\n", pipePath); fflush(stdout);
+                close(pipe);
+                printf("Fechou o pipe %s \n\n\n", pipePath); fflush(stdout);
+            }
+        }
+        closedir(directory);
+    }
+
 
     printf("Topic: %s", topic);
     printf("\n Identificador do pacote: ");
