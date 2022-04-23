@@ -128,16 +128,18 @@ void * thread(void * arguments) {
     ssize_t n;
     unsigned char recvline[MAXLINE + 1];
 
-    int fileDescriptor = *((int *) arguments);
-    int connfd = *((int *) (arguments + 1));
+    int fileDescriptor = ((int *) arguments)[0];
+    int connfd = ((int *) arguments)[1];
 
     printf("Entrei na thread\n");
         fflush(stdout);
 
     while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0) {
         printf("PACKET %d\n\n", n);
-        for (int i = 0; i < n; i++) printf("%c ", recvline[i]);
+        for (int i = 0; i < n; i++) printf("%02x ", recvline[i]);
         printf("\n\n");
+        fflush(stdout);
+        printf("Printei no %d \n\n", connfd);
         fflush(stdout);
         write(connfd, recvline, n);
     }
@@ -175,11 +177,9 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
     listOfTopicsNode->fileDescriptor = open(path, O_RDWR);//TODO: verificar se esta certo usar read E write
     //unlink(path); ///TODO: verificar se esta certo esse unlink
     arguments[0] = listOfTopicsNode->fileDescriptor;
+    arguments[1] = connfd;
 
     pthread_create(&(listOfTopicsNode->thread), NULL, thread, arguments);
-
-    printf("Sai do criador thread\n");
-        fflush(stdout);
 
     listOfTopicsNode->topic = topic;
     listOfTopicsNode->next = NULL;
@@ -191,7 +191,6 @@ Packet createSubackPacket(Packet subscribePacket, LinkedList * listOfTopicsNode,
     subackPacket.type = SUBACK;
     subackPacket.fixedHeaderFlags = 0;
     subackPacket.remainingLength = 2;
-    printf("entrei");
 
     listOfTopicsNode = getLastNode(listOfTopicsNode);
 
@@ -301,20 +300,6 @@ void publish(Packet publishPacket) {
     printf("\n\n\n");
 }
 
-void subscribe(int connfd, char * recvline, int n) {
-    int remainingLength = recvline[1];
-    int begin = 2, end = remainingLength + 1;
-
-    printf("Nome do topico: ");
-    for (int i = begin; i < end; i++)
-        printf("%c", recvline[i]);
-
-    for (int i = 0;  i < end; i++) 
-        printf("%02x ",recvline[i]);
-    printf("\n\n");
-    for (int i = 0;  i < end; i++) 
-        printf("%d ",recvline[i]);
-}
 
 int main (int argc, char **argv) {
     /* Os sockets. Um que será o socket que vai escutar pelas conexões
@@ -453,6 +438,7 @@ int main (int argc, char **argv) {
                         break;
                     case SUBSCRIBE:
                         printf("Subscribe:\n\n");
+                        printf("Socket do subscriber \n\n %d", connfd);
                         packetToClient = createSubackPacket(packet, listOfTopics, connfd);
                         break;
                     case DISCONNECT:
