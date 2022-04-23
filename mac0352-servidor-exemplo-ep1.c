@@ -135,10 +135,11 @@ void * thread(void * arguments) {
         fflush(stdout);
 
     while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0) {
-        printf("aaaaaaaaaaa\n");
+        printf("PACKET %d\n\n", n);
+        for (int i = 0; i < n; i++) printf("%c ", recvline[i]);
+        printf("\n\n");
         fflush(stdout);
-        recvline[n]=0;
-        write(connfd, recvline, strlen(recvline));
+        write(connfd, recvline, n);
     }
     return NULL;
 }
@@ -280,17 +281,12 @@ void publish(Packet publishPacket) {
     if (directory) {
         while ((file = readdir(directory)) != NULL) {
             strcpy(pipePath, path);
-            printf("%s\n\n\n", file->d_name); fflush(stdout);
             if (strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0) {
                 strcpy(pipePath, path);
                 strcat(pipePath, file->d_name);
-                printf("Entrou no if %s \n\n\n", pipePath); fflush(stdout);
-                pipe = open(pipePath, O_WRONLY);
-                printf("Abriu o pipe %s \n\n\n", pipePath); fflush(stdout);
+                pipe = open(pipePath, O_RDWR);
                 write(pipe, message, sizeOfMessage);
-                printf("Escreveu no pipe %s \n\n\n", pipePath); fflush(stdout);
                 close(pipe);
-                printf("Fechou o pipe %s \n\n\n", pipePath); fflush(stdout);
             }
         }
         closedir(directory);
@@ -468,7 +464,9 @@ int main (int argc, char **argv) {
                 }
                 int size;
                 char * message = convertPacketToMessage(packetToClient, &size);
-                write(connfd, message, size);
+
+                if (message != NULL)
+                    write(connfd, message, size);
                 fflush(stdout);
             }
             /* ========================================================= */
