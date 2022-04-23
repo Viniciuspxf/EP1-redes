@@ -75,6 +75,8 @@ typedef struct {
 #define PUBLISH 3
 #define SUBSCRIBE 8
 #define SUBACK 9
+#define PINGREQ 12
+#define PINGRESP 13
 #define DISCONNECT 14
 #define SUCCESS_SUBSCRIBE 0x00
 
@@ -98,6 +100,18 @@ Packet createPacket(char * recvline, int n) {
     packet.payload = NULL;
 
     return packet;
+}
+
+Packet createPingrespPacket() {
+    Packet pingrespPacket;
+
+    pingrespPacket.type = PINGRESP;
+    pingrespPacket.fixedHeaderFlags = 0;
+    pingrespPacket.remainingLength = 0;
+    pingrespPacket.variableHeader = NULL;
+    pingrespPacket.payload = NULL;
+
+    return pingrespPacket;
 }
 
 Packet createConnackPacket() {
@@ -131,18 +145,9 @@ void * thread(void * arguments) {
     int fileDescriptor = ((int *) arguments)[0];
     int connfd = ((int *) arguments)[1];
 
-    printf("Entrei na thread\n");
-        fflush(stdout);
-
-    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0) {
-        printf("PACKET %d\n\n", n);
-        for (int i = 0; i < n; i++) printf("%02x ", recvline[i]);
-        printf("\n\n");
-        fflush(stdout);
-        printf("Printei no %d \n\n", connfd);
-        fflush(stdout);
+    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0)
         write(connfd, recvline, n);
-    }
+
     return NULL;
 }
 
@@ -290,16 +295,7 @@ void publish(Packet publishPacket) {
         }
         closedir(directory);
     }
-
-
-    printf("Topic: %s", topic);
-    printf("\n Identificador do pacote: ");
-
-    for (char i = end; i < remainingLength; i++)
-        printf("%c", (char) publishPacket.variableHeader[i]);
-    printf("\n\n\n");
 }
-
 
 int main (int argc, char **argv) {
     /* Os sockets. Um que será o socket que vai escutar pelas conexões
@@ -416,11 +412,6 @@ int main (int argc, char **argv) {
              * para que este servidor consiga interpretar comandos MQTT  */
             while ((n=read(connfd, recvline, MAXLINE)) > 0) {
                 recvline[n]=0;
-                printf("[Cliente conectado no processo filho %d enviou:] ",getpid());
-                if ((fputs(recvline,stdout)) == EOF) {
-                    perror("fputs :( \n");
-                    exit(6);
-                }
                 Packet packet = createPacket(recvline, n);
                 Packet packetToClient;
 
@@ -429,23 +420,26 @@ int main (int argc, char **argv) {
                 switch (packet.type) {
 
                     case CONNECT:
-                        printf("Connect:\n\n");
+                        printf("[Connect do processo filho %d]\n\n", getpid());
                         packetToClient = createConnackPacket();
                         break;
                     case PUBLISH:
-                        printf("Publish:\n\n");
+                        printf("[Publish do processo filho %d]\n\n", getpid());
                         publish(packet);
                         break;
                     case SUBSCRIBE:
-                        printf("Subscribe:\n\n");
-                        printf("Socket do subscriber \n\n %d", connfd);
+                        printf("[Subscribe do processo filho %d]\n\n", getpid());
                         packetToClient = createSubackPacket(packet, listOfTopics, connfd);
                         break;
                     case DISCONNECT:
-                        printf("Disconnect:\n\n");
+                        printf("[Disconnect do processo filho %d]\n\n", getpid());
+                        break;
+                    case PINGREQ:
+                        printf("[Ping do processo filho %d]\n\n", getpid());
+                        packetToClient = createPingrespPacket();
                         break;
                     default:
-                        printf("Comportamento não previsto - hexadecimal\n\n: %02x, %d", packet.type, packet.type);
+                        printf("[Comportamento não previsto - hexadecimal]\n\n: %02x, %d", packet.type, packet.type);
                         break;
                 }
                 int size;
