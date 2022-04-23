@@ -40,11 +40,25 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <pthread.h>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #define LISTENQ 1
 #define MAXDATASIZE 100
 #define MAXLINE 4096
 
-typedef  struct {
+struct linkedList {
+    pthread_t thread;
+    int fileDescriptor;
+    char * topic;
+    struct linkedList * next;
+};
+
+typedef struct linkedList LinkedList;
+
+typedef struct {
     unsigned char type;
     unsigned char fixedHeaderFlags;
     unsigned char remainingLength;
@@ -59,6 +73,7 @@ typedef  struct {
 #define SUBSCRIBE 8
 #define SUBACK 9
 #define DISCONNECT 14
+#define SUCCESS_SUBSCRIBE 0x00
 
 Packet createPacket(char * recvline, int n) {
     Packet packet; 
@@ -99,40 +114,116 @@ Packet createConnackPacket() {
     return connackPacket;
 }
 
-Packet createSubackPacket(Packet subscribePacket) {
-    Packet connackPacket;
+LinkedList * getLastNode(LinkedList * listOfTopicsNode) {
+    while (listOfTopicsNode->next != NULL) 
+        listOfTopicsNode = listOfTopicsNode->next;
 
-    connackPacket.type = SUBACK;
-    connackPacket.fixedHeaderFlags = 0;
-    
-    subscribePacket.remainingLength = 0;//todo
-    subscribePacket.variableHeader = 0;//todo
-
-    connackPacket.payload = NULL;
-
-    return connackPacket;
+    return listOfTopicsNode;
 }
 
-void sendMessage(Packet packet, int destiny) {
-    char * message;
-    int size;
-    
-    if (packet.type == NONE) 
-        return;
-    
-    size = 2 + packet.remainingLength;
+void * thread(void * arguments) {
+    ssize_t n;
+    unsigned char recvline[MAXLINE + 1];
 
-    message = malloc(size*sizeof(char));
+    int fileDescriptor = *((int *) arguments);
+    int connfd = *((int *) (arguments + 1));
+
+    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0) {
+        recvline[n]=0;
+        write(connfd, recvline, strlen(recvline));
+    }
+    return NULL;
+}
+
+void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
+    int * arguments = malloc(2*(sizeof(int)));
+    char path[MAXLINE + 1];
+    char pid[MAXLINE + 1];
+    path[0] = '\0';
+
+    strcat(path, "/tmp/");
+    strcat(path, "ep1.");
+    strcat(path, topic);
+    strcat(path, ".");
+    sprintf(pid, "%d", getpid());
+    strcat(path, pid);
+    strcat(path, ".falcon");
+
+    listOfTopicsNode->next = malloc(sizeof(LinkedList));
+    listOfTopicsNode = listOfTopicsNode->next;
+
+    if (mkfifo(path,0644) == -1) {
+        perror("mkfifo :(\n");
+    }
+
+    listOfTopicsNode->fileDescriptor = open(path, O_RDWR); //TODO: verificar se esta certo usar read E write
+    arguments[0] = listOfTopicsNode->fileDescriptor;
+
+    pthread_create(&(listOfTopicsNode->thread), NULL, thread, arguments);
+
+    listOfTopicsNode->topic = topic;
+    listOfTopicsNode->next = NULL;
+}
+
+Packet createSubackPacket(Packet subscribePacket, LinkedList * listOfTopicsNode, int connfd) {
+    Packet subackPacket;
+
+    subackPacket.type = SUBACK;
+    subackPacket.fixedHeaderFlags = 0;
+    subackPacket.remainingLength = 2;
+    printf("entrei");
+
+    listOfTopicsNode = getLastNode(listOfTopicsNode);
+
+    
+    for (int i = 2; i < subscribePacket.remainingLength; i++) {
+        int j;
+        unsigned char size = subscribePacket.variableHeader[i] + subscribePacket.variableHeader[i + 1];
+        i += 2;
+
+        char *topic = malloc((size + 1)*sizeof(char));
+        topic[size] = '\0';
+
+        for (j = i; j < i + size; j++) {
+            topic[j - i] = subscribePacket.variableHeader[j];
+        }
+
+        addTopic(topic, listOfTopicsNode, connfd);
+        listOfTopicsNode = getLastNode(listOfTopicsNode);
+        i = j;
+        subackPacket.remainingLength++;
+    }
+
+    subackPacket.variableHeader = malloc(subackPacket.remainingLength*sizeof(unsigned char *));
+
+    subackPacket.variableHeader[0] = subscribePacket.variableHeader[0];
+    subackPacket.variableHeader[1] = subscribePacket.variableHeader[1];
+
+    for (int i = 2; i < subackPacket.remainingLength; i++)
+        subackPacket.variableHeader[i] = SUCCESS_SUBSCRIBE;
+
+    subackPacket.payload = NULL;
+
+    return subackPacket;
+}
+
+char * convertPacketToMessage(Packet packet, int *size) {
+    char * message;
+    *size = 0;
+
+    if (packet.type == NONE) 
+        return NULL;
+    
+    *size = 2 + packet.remainingLength;
+
+    message = malloc((*size)*sizeof(char));
     message[0] = (packet.type << 4) | packet.fixedHeaderFlags;
     message[1] = packet.remainingLength;
 
-    for (int i = 2; i < size; i++)
+    for (int i = 2; i < *size; i++)
         message[i] = (char) packet.variableHeader[i - 2];
 
-    for (int i = 0;  i < size; i++) 
-        printf("Byte: %d Hex: %02x  Char: %c Int: %d\n\n", i, message[i],  message[i],  message[i]);
-
-    write(destiny, message, size);
+    return message;
 }
 
 void publish(Packet publishPacket) {
@@ -183,6 +274,9 @@ int main (int argc, char **argv) {
     unsigned char recvline[MAXLINE + 1];
     /* Armazena o tamanho da string lida do cliente */
     ssize_t n;
+
+    LinkedList * listOfTopics = malloc(sizeof(LinkedList));
+    listOfTopics->next = NULL;
    
     if (argc != 2) {
         fprintf(stderr,"Uso: %s <Porta>\n",argv[0]);
@@ -304,8 +398,7 @@ int main (int argc, char **argv) {
                         break;
                     case SUBSCRIBE:
                         printf("Subscribe:\n\n");
-                        packetToClient = createSubackPacket(packet);
-                        packetToClient.type = NONE;//PROVISORIO
+                        packetToClient = createSubackPacket(packet, listOfTopics, connfd);
                         break;
                     case DISCONNECT:
                         printf("Disconnect:\n\n");
@@ -314,7 +407,9 @@ int main (int argc, char **argv) {
                         printf("Comportamento não previsto - hexadecimal\n\n: %02x, %d", packet.type, packet.type);
                         break;
                 }
-                sendMessage(packetToClient, connfd);
+                int size;
+                char * message = convertPacketToMessage(packetToClient, &size);
+                write(connfd, message, size);
                 fflush(stdout);
             }
             /* ========================================================= */
