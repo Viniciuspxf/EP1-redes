@@ -157,6 +157,7 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
     }
 
     listOfTopicsNode->fileDescriptor = open(path, O_RDWR); //TODO: verificar se esta certo usar read E write
+    unlink(path); ///TODO: verificar se esta certo esse unlink
     arguments[0] = listOfTopicsNode->fileDescriptor;
 
     pthread_create(&(listOfTopicsNode->thread), NULL, thread, arguments);
