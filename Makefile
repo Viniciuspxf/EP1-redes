@@ -1,11 +1,11 @@
 all: server
-	./server 8001
+	./server 8000
 
 server: server.o
 	gcc -o server server.o -lpthread
 
 server.o: mac0352-servidor-exemplo-ep1.c
-	gcc -o server.o mac0352-servidor-exemplo-ep1.c -c -g
+	gcc -o server.o mac0352-servidor-exemplo-ep1.c -c
 
 clean:
 	rm -rf *.o *~ server
