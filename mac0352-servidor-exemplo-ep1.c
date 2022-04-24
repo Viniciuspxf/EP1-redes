@@ -158,6 +158,15 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
     listOfTopicsNode->next = NULL;
 }
 
+void freePacket(Packet packet) {
+
+    if (packet.variableHeader != NULL)
+        free(packet.variableHeader);
+
+    if (packet.payload != NULL)
+        free(packet.payload);
+}
+
 Packet createSubackPacket(Packet subscribePacket, LinkedList * listOfTopicsNode, int connfd) {
     Packet subackPacket;
 
@@ -199,6 +208,18 @@ Packet createSubackPacket(Packet subscribePacket, LinkedList * listOfTopicsNode,
     return subackPacket;
 }
 
+Packet createNonePacket() {
+    Packet nonePacket;
+
+    nonePacket.type = NONE;
+    nonePacket.fixedHeaderFlags = 0;
+    nonePacket.remainingLength = 0;
+    nonePacket.payload = NULL;
+    nonePacket.variableHeader = NULL;
+
+    return nonePacket;
+}
+
 char * convertPacketToMessage(Packet packet, int *size) {
     char * message;
     *size = 0;
@@ -229,15 +250,16 @@ void publish(Packet publishPacket) {
     int sizeOfTopic = msb + lsb;
     char begin = 2;
     char end = begin + sizeOfTopic;
-    char * topic = malloc((sizeOfTopic + 1)*sizeof(char));
-    topic[sizeOfTopic] = '\0';
+    char topic[MAXLINE + 1];
 
     DIR *directory;
     struct dirent *file;
     
 
     for (char i = begin; i < end; i++)
-        topic[i - begin] = publishPacket.variableHeader[i]; 
+        topic[i - begin] = publishPacket.variableHeader[i];
+        
+    topic[sizeOfTopic] = '\0';
     
     strcat(path, "/tmp/");
     strcat(path, "ep1");
@@ -263,6 +285,7 @@ void publish(Packet publishPacket) {
         }
         closedir(directory);
     }
+    free(message);
 }
 
 int main (int argc, char **argv) {
@@ -318,7 +341,7 @@ int main (int argc, char **argv) {
                 Packet packet = createPacket(recvline, n);
                 Packet packetToClient;
 
-                packetToClient.type = NONE;
+                packetToClient = createNonePacket();
 
                 switch (packet.type) {
 
@@ -352,6 +375,8 @@ int main (int argc, char **argv) {
                     write(connfd, message, size);
                     free(message);
                 }
+                freePacket(packet);
+                freePacket(packetToClient);
                 fflush(stdout);
             }
             printf("[Uma conexão fechada]\n");
