@@ -119,6 +119,8 @@ void * thread(void * arguments) {
     while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0)
         write(connfd, recvline, n);
 
+    free(arguments);
+    close(fileDescriptor);
     return NULL;
 }
 
@@ -346,8 +348,10 @@ int main (int argc, char **argv) {
                 int size;
                 char * message = convertPacketToMessage(packetToClient, &size);
 
-                if (message != NULL)
+                if (message != NULL) {
                     write(connfd, message, size);
+                    free(message);
+                }
                 fflush(stdout);
             }
             printf("[Uma conexão fechada]\n");
