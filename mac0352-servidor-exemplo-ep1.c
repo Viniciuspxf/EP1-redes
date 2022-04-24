@@ -114,13 +114,7 @@ void freeListOfTopics(LinkedList * listOfTopicsNode) {
     char path[MAXLINE + 1];
     char pid[MAXLINE + 1];
 
-
-    printf("Entrou na função\n\n");
-    fflush(stdout);
-
     if (listOfTopicsNode != NULL) {
-        printf("Entrou no if %s\n\n", listOfTopicsNode->topic);
-        fflush(stdout);
 
         if (listOfTopicsNode->topic != NULL){
             strcpy(path, "/tmp/");
@@ -139,9 +133,7 @@ void freeListOfTopics(LinkedList * listOfTopicsNode) {
             close(fileDescriptor);
 
             pthread_join(listOfTopicsNode->thread, NULL);
-    
-            printf("Finalização de fato\n\n");
-            fflush(stdout);
+
             unlink(path);
 
             free(listOfTopicsNode->topic);
@@ -158,18 +150,9 @@ void * thread(void * arguments) {
     int fileDescriptor = ((int *) arguments)[0];
     int connfd = ((int *) arguments)[1];
 
-    printf("Thread no %d \n\n", fileDescriptor);
-    fflush(stdout);
-
-    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 1) {
+    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 1)
         write(connfd, recvline, n);
-        printf("Escrevi no %d \n\n", fileDescriptor);
-        fflush(stdout);
 
-    }
-
-    printf("Saí da thread");
-    fflush(stdout);
     close(fileDescriptor);
     free(arguments);
 
