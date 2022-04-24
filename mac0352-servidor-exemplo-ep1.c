@@ -109,6 +109,48 @@ LinkedList * getLastNode(LinkedList * listOfTopicsNode) {
     return listOfTopicsNode;
 }
 
+void freeListOfTopics(LinkedList * listOfTopicsNode) {
+    int fileDescriptor;
+    char path[MAXLINE + 1];
+    char pid[MAXLINE + 1];
+
+
+    printf("Entrou na função\n\n");
+    fflush(stdout);
+
+    if (listOfTopicsNode != NULL) {
+        printf("Entrou no if %s\n\n", listOfTopicsNode->topic);
+        fflush(stdout);
+
+        if (listOfTopicsNode->topic != NULL){
+            strcpy(path, "/tmp/");
+            strcat(path, "ep1");
+            strcat(path, "/");
+            mkdir(path, 0777);
+            strcat(path, listOfTopicsNode->topic);
+            mkdir(path, 0777);
+            strcat(path, "/");
+            sprintf(pid, "%d", getpid());
+            strcat(path, pid);
+            strcat(path, ".falcon");
+
+            fileDescriptor = open(path, O_RDWR);
+            write(fileDescriptor, "", 1);
+            close(fileDescriptor);
+
+            pthread_join(listOfTopicsNode->thread, NULL);
+    
+            printf("Finalização de fato\n\n");
+            fflush(stdout);
+            unlink(path);
+
+            free(listOfTopicsNode->topic);
+        }
+        freeListOfTopics(listOfTopicsNode->next);
+        free(listOfTopicsNode);
+    }
+}
+
 void * thread(void * arguments) {
     ssize_t n;
     unsigned char recvline[MAXLINE + 1];
@@ -116,11 +158,21 @@ void * thread(void * arguments) {
     int fileDescriptor = ((int *) arguments)[0];
     int connfd = ((int *) arguments)[1];
 
-    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 0)
-        write(connfd, recvline, n);
+    printf("Thread no %d \n\n", fileDescriptor);
+    fflush(stdout);
 
-    free(arguments);
+    while ((n=read(fileDescriptor, recvline, MAXLINE)) > 1) {
+        write(connfd, recvline, n);
+        printf("Escrevi no %d \n\n", fileDescriptor);
+        fflush(stdout);
+
+    }
+
+    printf("Saí da thread");
+    fflush(stdout);
     close(fileDescriptor);
+    free(arguments);
+
     return NULL;
 }
 
@@ -128,9 +180,8 @@ void * addTopic(char * topic, LinkedList *listOfTopicsNode, int connfd) {
     int * arguments = malloc(2*(sizeof(int)));
     char path[MAXLINE + 1];
     char pid[MAXLINE + 1];
-    path[0] = '\0';
 
-    strcat(path, "/tmp/");
+    strcpy(path, "/tmp/");
     strcat(path, "ep1");
     strcat(path, "/");
     mkdir(path, 0777);
@@ -260,8 +311,8 @@ void publish(Packet publishPacket) {
         topic[i - begin] = publishPacket.variableHeader[i];
         
     topic[sizeOfTopic] = '\0';
-    
-    strcat(path, "/tmp/");
+
+    strcpy(path, "/tmp/");
     strcat(path, "ep1");
     strcat(path, "/");
     mkdir(path, 0777);
@@ -297,6 +348,7 @@ int main (int argc, char **argv) {
 
     LinkedList * listOfTopics = malloc(sizeof(LinkedList));
     listOfTopics->next = NULL;
+    listOfTopics->topic =  NULL;
    
     if (argc != 2) {
         fprintf(stderr,"Uso: %s <Porta>\n",argv[0]);
@@ -379,6 +431,7 @@ int main (int argc, char **argv) {
                 freePacket(packetToClient);
                 fflush(stdout);
             }
+            freeListOfTopics(listOfTopics);
             printf("[Uma conexão fechada]\n");
             exit(0);
         }
