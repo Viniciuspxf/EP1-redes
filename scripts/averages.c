@@ -3,7 +3,7 @@
 #include <math.h>
 
 int main (int argc, char **argv) {
-    char unitInput, unitOutput;
+    char unitInput[5], unitOutput[5];
     double CPU[30];
     int size;
     double networkInput[30], networkOutput[30];
@@ -13,7 +13,7 @@ int main (int argc, char **argv) {
 
     size = 0;
 
-    while (scanf("%lf %% | %f%c / %f%c\n", &CPU[size], &networkInput[size], &unitInput, &networkOutput[size], &unitOutput) != EOF) {
+    while (scanf("%lf %% | %lf%s / %lf%s\n", &CPU[size], &networkInput[size], unitInput, &networkOutput[size], unitOutput) != EOF) {
       averageCPU += CPU[size];
       averageNetworkInput += networkInput[size];
       averageNetworkOutput += networkOutput[size];
@@ -25,9 +25,11 @@ int main (int argc, char **argv) {
     averageNetworkInput /= 30;
     averageNetworkOutput /= 30;
 
+    printf("30 medições com %s clientes. 95%% de nível de confiança\n\n", argv[1]);
+
     printf("Quantidade média de uso de CPU foi %lf%%\n", averageCPU);
-    printf("Quantidade média de entrada de bytes pela rede foi %lf%c\n", averageNetworkInput, unitInput);
-    printf("Quantidade média de saída de bytes pela rede foi %lf%c\n", averageNetworkOutput, unitInput);
+    printf("Quantidade média de entrada de bytes pela rede foi %lf%s\n", averageNetworkInput, unitInput);
+    printf("Quantidade média de saída de bytes pela rede foi %lf%s\n", averageNetworkOutput, unitInput);
 
     for (int i = 0; i < size; i++){
       varianceCPU += (CPU[i] - averageCPU) * (CPU[i] - averageCPU);
@@ -41,13 +43,13 @@ int main (int argc, char **argv) {
     printf("\n\n");
 
     printf("Variância de uso de CPU foi %lf\n", varianceCPU);
-    printf("Variância de entrada de bytes pela rede foi %lf\n\n", varianceNetworkInput);
-    printf("Variância de saída de bytes pela rede foi %lf\n\n", varianceNetworkOutput);
+    printf("Variância de entrada de bytes pela rede foi %lf\n", varianceNetworkInput);
+    printf("Variância de saída de bytes pela rede foi %lf\n", varianceNetworkOutput);
 
     printf("\n\n");
-    printf("Uso de memória: Lado esquerdo: %lf lado direito: %lf\n", averageCPU - 2.04252*sqrt(varianceCPU/30), averageCPU + 2.04252*sqrt(varianceCPU/30));
-    printf("Entrada de bytes pela rede : Lado esquerdo: %lf lado direito: %lf\n\n", averageNetworkInput - 2.04252*sqrt(varianceNetworkInput/30), averageNetworkInput + 2.04252*sqrt(varianceNetworkInput/30));
-    printf("Saída de bytes pela rede: Lado esquerdo: %lf lado direito: %lf\n\n", averageNetworkOutput - 2.04252*sqrt(varianceNetworkOutput/30), averageNetworkOutput + 2.04252*sqrt(varianceNetworkOutput/30));
-
+    printf("Uso de CPU: Lado esquerdo: %lf lado direito: %lf\n", averageCPU - 2.04252*sqrt(varianceCPU/30), averageCPU + 2.04252*sqrt(varianceCPU/30));
+    printf("Entrada de bytes pela rede : Lado esquerdo: %lf lado direito: %lf\n", averageNetworkInput - 2.04252*sqrt(varianceNetworkInput/30), averageNetworkInput + 2.04252*sqrt(varianceNetworkInput/30));
+    printf("Saída de bytes pela rede: Lado esquerdo: %lf lado direito: %lf\n", averageNetworkOutput - 2.04252*sqrt(varianceNetworkOutput/30), averageNetworkOutput + 2.04252*sqrt(varianceNetworkOutput/30));
+    printf("\n\n");
     return 0;
 }
