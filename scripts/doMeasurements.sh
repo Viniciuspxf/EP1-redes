@@ -10,7 +10,7 @@ mkdir results
 
 for NUMBER_OF_CLIENTS in ${CASES[@]}; do
   mkdir results/${NUMBER_OF_CLIENTS}
-  for _ in $(seq 15); do
+  for _ in $(seq 30); do
     docker-compose up -d
 
     ./scripts/collectStats.sh ${NUMBER_OF_CLIENTS} &
