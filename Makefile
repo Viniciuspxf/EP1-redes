@@ -1,6 +1,3 @@
-all: server
-	./server 8000
-
 server: server.o
 	gcc -o server server.o -lpthread
 
